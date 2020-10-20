@@ -1,7 +1,0 @@
-1 2 3 ERROR: index= 8  area is None
-ERROR: index= 9  area is None
-4 ERROR: index= 9  area is None
-5 6 testFileName= trajTest_25_30.pickle
-MAPE= 15.378520008234554
-RMSE= 364.1393963855051
-MAE= 288.1666666666667
