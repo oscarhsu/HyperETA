@@ -22,7 +22,7 @@ will show evaluated results (MAPE,RMSE,MAE)
 ```
 python run_HyperETA_noDTW.py
 ```
-will show the results not involve DTW.
+will show the results not involve DTW. It is faster then **run_HyperETA.py**.
 
 # Data
 
