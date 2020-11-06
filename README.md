@@ -15,25 +15,44 @@ This program run on python3.7.
 # Usage:
 
 ```
-python run_HyperETA.py
+python run_HyperETA.py --trainDataFile ./data/train --testDataFile ./data/testRemoveBeginLast
 ```
 will show evaluated results (MAPE,RMSE,MAE)
 
 ```
-python run_HyperETA_noDTW.py
+python run_HyperETA.py --trajModel trainTrajModel.pickle --testTrajPreprocessed testPreprocessed.pickle
+```
+will show evaluated results(MAPE,RMSE,MAE) but skip preprocessing. It uses the existing trajectories model.
+```
+python run_HyperETA_noDTW.py --trainDataFile ./data/train --testDataFile ./data/testRemoveBeginLast
 ```
 will show the results not involve DTW. It is faster then **run_HyperETA.py**.
 
+```
+python run_HyperETA_noDTW.py --trajModel trainTrajModel.pickle --testTrajPreprocessed testPreprocessed.pickle
+```
+will show evaluated results(MAPE,RMSE,MAE) but not involve DTW and skip preprocessing. It uses the existing trajectories model.
+
+
 # Data
 
-## trajTrain.pickle
+## train
+
+Raw trajectories for train.
+
+## testRemoveBeginLast
+
+Raw trajectories for test.
+Already remove staying points in the beginning and the end of a trajectory.
+
+## trainTrajModel.pickle
 
 The trajectories model, includes 3 tables
 * Hypercube series table : Preprocessed trajectories.
 * Original trajectories table: Original GPS data.
 * Mapping table : It map hypercubes to original trajectories.
 
-## trajTest.pickle
+## testPreprocessed.pickle
 
 Test data, includes 3 tables
 * Hypercube series table : Preprocessed trajectories.

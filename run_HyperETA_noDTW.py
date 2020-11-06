@@ -1,16 +1,23 @@
 import json
 import pickle
 import numpy
-import pandas
 from pandas import DataFrame
-from dtw import accelerated_dtw
-import math
 from math import cos
 from math import sin
 from math import radians
 from math import asin
-#pandas.set_option('display.max_rows', 100)
 
+from preprocess import trajModel
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--trainDataFile', type = str)
+parser.add_argument('--trajModel', type = str)
+parser.add_argument('--testDataFile', type = str)
+parser.add_argument('--testTrajPreprocessed', type = str)
+args = parser.parse_args()
+
+config = json.load(open('./config.json', 'r'))
 
 
 
@@ -194,37 +201,42 @@ def getTestResult4OneTarget2(targetTrajNo,
   return (totalTime, realTime, realTime2, tempExpResult, confidence)
 
 
-
+#python run_HyperETA_noDTW.py --trainDataFile ./data/train --testDataFile ./data/testRemoveBeginLast
+#python run_HyperETA_noDTW.py --trajModel trainTrajModel.pickle --testTrajPreprocessed testPreprocessed.pickle
 if __name__ == '__main__':
-  epLat = 0.012160099999998054
-  epLng = 0.014610749999992125
-  epTime = 255
-  #testFileName = 'trajTest.pickle'
-  testFileName = 'trajTest_25_30.pickle'
-  #testFileName = 'trajTrain.pickle'
-  startTrajNum = 1
-  endTrajNum = 100000
+  if args.trainDataFile :
+    oTrainTrajModel = trajModel(config)
+    oTrainTrajModel.inputTraj(args.trainDataFile)
+  elif args.trajModel :
+    with open(args.trajModel, 'rb') as f:
+          oTrainTrajModel = pickle.load(f)
 
-  with open('trajTrain.pickle', 'rb') as f:
-    trajTrainDict = pickle.load(f)
-    trajTrain = trajTrainDict['trajTrain']
-    trajTrainOri = trajTrainDict['trajTrainOri']
-    mappingTrain = trajTrainDict['mappingTrain']
+  if args.testDataFile :
+      oTestTrajModel = trajModel(config)
+      oTestTrajModel.epLat = oTrainTrajModel.epLat
+      oTestTrajModel.epLng = oTrainTrajModel.epLng
+      oTestTrajModel.epTime = oTrainTrajModel.epTime
+      oTestTrajModel.inputTraj(args.testDataFile)
+  elif args.testTrajPreprocessed :
+      with open(args.testTrajPreprocessed, 'rb') as f:
+          oTestTrajModel = pickle.load(f)
 
 
-  with open(testFileName, 'rb') as f:
-    trajTrainDict = pickle.load(f)
-    trajTest = trajTrainDict['trajTest']
-    trajTestOri = trajTrainDict['trajTestOri']
-    mappingTest = trajTrainDict['mappingTest']
-  #trajTest = trajTrainDict['trajTrain']
-  #trajTestOri = trajTrainDict['trajTrainOri']
-  #mappingTest = trajTrainDict['mappingTrain']
+  trajTrain = oTrainTrajModel.traj
+  trajTrainOri = oTrainTrajModel.trajOri
+  mappingTrain = oTrainTrajModel.mapping
+  epLat = oTrainTrajModel.epLat
+  epLng = oTrainTrajModel.epLng
+  epTime = oTrainTrajModel.epTime
+
+  trajTest = oTestTrajModel.traj
+  trajTestOri = oTestTrajModel.trajOri
+  mappingTest = oTestTrajModel.mapping
 
   trajNoList = numpy.unique(trajTest[5])
   expResult = numpy.zeros((trajNoList.max()+1,6),dtype='float')
   expResult[:,4] = list(range(trajNoList.max()+1))
-  for targetTrajNo in trajNoList[(startTrajNum-1):endTrajNum]:
+  for targetTrajNo in trajNoList:
       print(targetTrajNo, end=' ', flush=True)
       totalTime,realTime,realTime2,tempExpResult,confidence = \
           getTestResult4OneTarget2(targetTrajNo,
@@ -240,21 +252,19 @@ if __name__ == '__main__':
       expResult[targetTrajNo,3] = realTime
       expResult[targetTrajNo,5] = confidence
 
-  #expResult2 = expResult[startTrajNum:(endTrajNum+1)]
   expResult2 = expResult[numpy.where(expResult[:, 0] == 1)[0]]
   deviation = numpy.absolute(expResult2[:,1] - expResult2[:,3])
   eachAPE = deviation * 100 / expResult2[:,3]
-  with open('output_'+testFileName+'.txt','w') as f:
-    f.write('testFileName='+testFileName+'\n')
+  with open('output_noDTW.txt','w') as f:
     f.write('MAPE=' + str(eachAPE.mean() ) + '\n')
     f.write('RMSE=' + str(numpy.sqrt( (numpy.square(deviation) ).mean() ) ) + '\n')
     f.write('MAE=' + str(deviation.mean() ) + '\n')
-  print('testFileName=',testFileName)
   #MAPE
+  print('\n')
   print('MAPE=', eachAPE.mean())
   #RMSE
   print('RMSE=', numpy.sqrt( (numpy.square(deviation) ).mean() ) )
   #MAE
   print('MAE=', deviation.mean() )
-  with open('expResult_'+testFileName+'_'+str(startTrajNum)+'_'+str(endTrajNum)+'.pickle', 'wb') as f:
+  with open('expResult_noDTW.pickle', 'wb') as f:
     pickle.dump(expResult,f)

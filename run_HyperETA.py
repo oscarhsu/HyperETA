@@ -9,10 +9,17 @@ from math import cos
 from math import sin
 from math import radians
 from math import asin
-#pandas.set_option('display.max_rows', 100)
+from preprocess import trajModel
 
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--trainDataFile', type = str)
+parser.add_argument('--trajModel', type = str)
+parser.add_argument('--testDataFile', type = str)
+parser.add_argument('--testTrajPreprocessed', type = str)
+args = parser.parse_args()
 
-
+config = json.load(open('./config.json', 'r'))
 
 def getOverlayOneCubeWithPointAmount(trajList1, trajList2, dtime, distX, distY, angDiffConst, pointAmountRatio=0):
   maxTime = trajList1[9] + dtime
@@ -81,7 +88,7 @@ def angleDiff(a, b):
   return result
 
 
-def getDistance(x, y):
+def getDistanceXY(x, y):
   Long1, Lat1 = x
   Long2, Lat2 = y
   deltaX = cos(radians(Lat2)) * cos(radians(Long2)) \
@@ -104,7 +111,7 @@ def getDTWeachRow(row, x, mappingTrain, trajTrainOri):
     (trajTrainOri[5] == row[5]) &
     (trajTrainOri[1].isin(tempTrajOriNo))
     , [3, 4]].to_numpy()
-  d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(x, y, getDistance)
+  d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(x, y, getDistanceXY)
   return d
 
 
@@ -135,7 +142,6 @@ def getTimeByMinDtw(targetNo,
   return (commonTime, minIndex, result[minIndex])
 
 
-# 2020/06/23
 
 def getFullTime2(cube, trajTrainOri, mappingTrain):
   targetTrainOri = trajTrainOri.loc[(trajTrainOri[5] == cube[5]),]
@@ -229,33 +235,42 @@ def getTestResult4OneTarget2(targetTrajNo,
     confidence = float(n - countAreaNone) / float(n)
   return (totalTime, realTime, realTime2, tempExpResult, confidence)
 
-
-
+#python run_HyperETA.py --trainDataFile ./data/train --testDataFile ./data/testRemoveBeginLast
+#python run_HyperETA.py --trajModel trainTrajModel.pickle --testTrajPreprocessed testPreprocessed.pickle
 if __name__ == '__main__':
-  epLat = 0.012160099999998054
-  epLng = 0.014610749999992125
-  epTime = 255
-  testFileName = 'trajTest.pickle'
-  startTrajNum = 1
-  endTrajNum = 10000000
+  if args.trainDataFile :
+    oTrainTrajModel = trajModel(config)
+    oTrainTrajModel.inputTraj(args.trainDataFile)
+  elif args.trajModel :
+    with open(args.trajModel, 'rb') as f:
+          oTrainTrajModel = pickle.load(f)
 
-  with open('trajTrain.pickle', 'rb') as f:
-    trajTrainDict = pickle.load(f)
-    trajTrain = trajTrainDict['trajTrain']
-    trajTrainOri = trajTrainDict['trajTrainOri']
-    mappingTrain = trajTrainDict['mappingTrain']
+  if args.testDataFile :
+      oTestTrajModel = trajModel(config)
+      oTestTrajModel.epLat = oTrainTrajModel.epLat
+      oTestTrajModel.epLng = oTrainTrajModel.epLng
+      oTestTrajModel.epTime = oTrainTrajModel.epTime
+      oTestTrajModel.inputTraj(args.testDataFile)
+  elif args.testTrajPreprocessed :
+      with open(args.testTrajPreprocessed, 'rb') as f:
+          oTestTrajModel = pickle.load(f)
 
 
-  with open(testFileName, 'rb') as f:
-    trajTrainDict = pickle.load(f)
-    trajTest = trajTrainDict['trajTest']
-    trajTestOri = trajTrainDict['trajTestOri']
-    mappingTest = trajTrainDict['mappingTest']
+  trajTrain = oTrainTrajModel.traj
+  trajTrainOri = oTrainTrajModel.trajOri
+  mappingTrain = oTrainTrajModel.mapping
+  epLat = oTrainTrajModel.epLat
+  epLng = oTrainTrajModel.epLng
+  epTime = oTrainTrajModel.epTime
+
+  trajTest = oTestTrajModel.traj
+  trajTestOri = oTestTrajModel.trajOri
+  mappingTest = oTestTrajModel.mapping
 
   trajNoList = numpy.unique(trajTest[5])
   expResult = numpy.zeros((trajNoList.max()+1,6),dtype='float')
   expResult[:,4] = list(range(trajNoList.max()+1))
-  for targetTrajNo in trajNoList[(startTrajNum-1):endTrajNum]:
+  for targetTrajNo in trajNoList:
       print(targetTrajNo, end=' ', flush=True)
       totalTime,realTime,realTime2,tempExpResult,confidence = \
           getTestResult4OneTarget2(targetTrajNo,
@@ -274,12 +289,21 @@ if __name__ == '__main__':
   expResult2 = expResult[numpy.where(expResult[:, 0] == 1)[0]]
   deviation = numpy.absolute(expResult2[:,1] - expResult2[:,3])
   eachAPE = deviation * 100 / expResult2[:,3]
-  print('testFileName=',testFileName)
+
+  with open('output.txt','w') as f:
+    f.write('MAPE=' + str(eachAPE.mean() ) + '\n')
+    f.write('RMSE=' + str(numpy.sqrt( (numpy.square(deviation) ).mean() ) ) + '\n')
+    f.write('MAE=' + str(deviation.mean() ) + '\n')
+
+  if args.testDataFile :
+    print('testFileName=',args.testDataFile)
+  elif args.testTrajPreprocessed :
+    print('testFileName=',args.testTrajPreprocessed)
   #MAPE
   print('MAPE=', eachAPE.mean())
   #RMSE
   print('RMSE=', numpy.sqrt( (numpy.square(deviation) ).mean() ) )
   #MAE
   print('MAE=', deviation.mean() )
-  with open('expResult_'+testFileName+'_'+str(startTrajNum)+'_'+str(endTrajNum), 'wb') as f:
+  with open('expResult.pickle', 'wb') as f:
     pickle.dump(expResult,f)
